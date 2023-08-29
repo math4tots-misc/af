@@ -8,6 +8,8 @@
 #include <string>
 #include <variant>
 
+#include "af/integer.hh"
+
 namespace af {
 struct AtomToken final {
   std::string value;
@@ -18,13 +20,22 @@ inline std::ostream &operator<<(std::ostream &out, const AtomToken &token) {
   return out << "AtomToken(\"" << token.value << "\")";
 }
 
-struct NumberToken final {
-  double value;
-  explicit NumberToken(double v) : value(v) {}
+struct IntegerToken final {
+  integer value;
+  explicit IntegerToken(integer v) : value(v) {}
 };
 
-inline std::ostream &operator<<(std::ostream &out, const NumberToken &token) {
-  return out << "NumberToken(" << token.value << ")";
+inline std::ostream &operator<<(std::ostream &out, const IntegerToken &token) {
+  return out << "IntegerToken(" << token.value << ")";
+}
+
+struct DoubleToken final {
+  double value;
+  explicit DoubleToken(double v) : value(v) {}
+};
+
+inline std::ostream &operator<<(std::ostream &out, const DoubleToken &token) {
+  return out << "DoubleToken(" << token.value << ")";
 }
 
 struct StringToken final {
@@ -36,7 +47,7 @@ inline std::ostream &operator<<(std::ostream &out, const StringToken &token) {
   return out << "StringToken(\"" << token.value << "\")";
 }
 
-using Token = std::variant<AtomToken, NumberToken, StringToken>;
+using Token = std::variant<AtomToken, IntegerToken, DoubleToken, StringToken>;
 
 inline std::ostream &operator<<(std::ostream &out, const Token &token) {
   std::visit([&](const auto &t) { out << t; }, token);
@@ -64,7 +75,9 @@ struct Lexer final {
   LexerSource src;
   std::istream &in;
   char peek = '\0';
-  bool dotNext = false;
+
+  /// @brief Special punctuation token that does not need whitespace to be separated
+  char special = 0;
 
  public:
   Lexer(LexerSource &&s) : src(std::move(s)), in(src.get()) {
@@ -79,13 +92,17 @@ struct Lexer final {
   // the default move constructor is broken because of '&in'.
   Lexer(Lexer &&lx) : Lexer(std::move(lx.src)) {
     peek = lx.peek;
-    dotNext = lx.dotNext;
+    special = lx.special;
   }
 
   // Explicitly deleted because the default is broken by 'istream &in'
   Lexer &operator=(Lexer &&lx) = delete;
 
  private:
+  static bool isSpecial(char c) {
+    return c == '.' || c == ';' || c == ':';
+  }
+
   char incr() {
     char old = peek;
     peek = static_cast<char>(in.get());
@@ -97,9 +114,10 @@ struct Lexer final {
 
  public:
   std::optional<Token> next() {
-    if (dotNext) {
-      dotNext = false;
-      return {AtomToken(".")};
+    if (special) {
+      std::string string({special});
+      special = 0;
+      return {AtomToken(std::move(string))};
     }
 
     while (!eof() && std::isspace(peek)) {
@@ -141,11 +159,13 @@ struct Lexer final {
 
     std::string value;
     if (std::isdigit(peek)) {
+      bool dot = false;
       value.push_back(incr());
       while (!eof() && std::isdigit(peek)) {
         value.push_back(incr());
       }
       if (!eof() && peek == '.') {
+        dot = true;
         value.push_back(incr());
         while (!eof() && std::isdigit(peek)) {
           value.push_back(incr());
@@ -155,13 +175,17 @@ struct Lexer final {
       // We only presume to have a number token if the entire string
       // matches the number pattern. If there are any extraneous non-whitespace
       // characters, we process the token as an atom
-      if (eof() || std::isspace(peek)) {
+      if (eof() || std::isspace(peek) || isSpecial(peek)) {
         // If the number ends with a '.', treat the '.' as a separate token.
         if (value.back() == '.') {
+          dot = false;
           value.pop_back();
-          dotNext = true;
+          special = '.';
         }
-        return {NumberToken(std::stod(value))};
+        if (dot) {
+          return {DoubleToken(std::stod(value))};
+        }
+        return {IntegerToken(std::stoll(value))};
       }
 
       // NOTE: There's no need to rewind (i.e. i = j)
@@ -171,10 +195,10 @@ struct Lexer final {
       value.push_back(incr());
     }
 
-    // If the atom ends with a '.', treat the '.' as a separate token.
-    if (value.back() == '.') {
+    // If the atom ends with a special character, address this.
+    if (value.size() > 1 && isSpecial(value.back())) {
+      special = value.back();
       value.pop_back();
-      dotNext = true;
     }
     return {AtomToken(std::move(value))};
   }
