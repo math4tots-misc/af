@@ -100,8 +100,14 @@ struct Lexer final {
       return {AtomToken(std::move(string))};
     }
 
-    while (!eof() && std::isspace(peek)) {
-      incr();
+    while (!eof() && (std::isspace(peek) || peek == '#')) {
+      if (peek == '#') {
+        while (!eof() && peek != '\n') {
+          incr();
+        }
+      } else {
+        incr();
+      }
     }
 
     if (eof()) {

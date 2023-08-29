@@ -1,0 +1,20 @@
+# fib.a4 - the first ever real program for ActorForth!
+
+fib	: Int -> Int
+	: 0 -> 0
+	: 1 -> 1
+    : Int -> Int;
+        dup
+        1 int -
+        fib
+        swap
+        2 int -
+        fib
+        +.
+
+12 fib print
+
+# f : Int -> Int;
+#    dup print fib.
+
+# 12 int f "fib = " print print

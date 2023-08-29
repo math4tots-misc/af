@@ -71,6 +71,13 @@ inline void initializeBuiltins(Interpreter &ip) {
         ix.push(Value(ix.stack.back()));
       }));
 
+  ip.globals.insert(mkfunc(
+      "swap",
+      FunctionType({AnyType{}}, {AnyType{}, AnyType{}}),
+      [](Interpreter &ix) {
+        std::swap(ix.stack.back(), ix.stack[ix.stack.size() - 2]);
+      }));
+
   // Defines functions
   ip.globals.insert(mkfunc(
       ":",
@@ -134,6 +141,9 @@ inline void initializeBuiltins(Interpreter &ip) {
                    defn[i] != Value(getAtomSemicolon())) {
               outputValues.push_back(defn[i++]);
             }
+            valueMap.insert(std::make_pair(
+                std::move(inputValues),
+                std::move(outputValues)));
           }
 
           // Body of the function. For now only one is supported.
