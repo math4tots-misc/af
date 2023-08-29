@@ -14,6 +14,7 @@
 namespace af {
 struct AtomToken final {
   Atom *value;
+  explicit AtomToken(Atom *v) : value(v) {}
   explicit AtomToken(const std::string &v) : value(intern(v)) {}
 };
 

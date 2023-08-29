@@ -1,5 +1,6 @@
 #include <fstream>
 #include <iostream>
+#include <streambuf>
 
 #include "af/atom.hh"
 #include "af/builtins.hh"
@@ -15,6 +16,21 @@ int main(int argc, char **argv) {
   Interpreter interpreter;
   initializeBuiltins(interpreter);
   initializeBuiltinMethods();
+  if (argc > 1) {
+    auto fin = std::ifstream(argv[1]);
+    std::string src(
+        (std::istreambuf_iterator<char>(fin)),
+        std::istreambuf_iterator<char>());
+    try {
+      auto lexer = Lexer(std::move(src));
+      while (interpreter.feed(lexer)) {
+      }
+    } catch (Error &e) {
+      std::cerr << "ERROR: " << e.message << std::endl;
+      return 1;
+    }
+    return 0;
+  }
   // auto useREPL = argc > 1;
   // auto lexer = useREPL ? Lexer(std::cin) : Lexer(std::ifstream(argv[1]));
 
@@ -31,7 +47,7 @@ int main(int argc, char **argv) {
   while (interpreter.feed(ts3)) {
   }
 
-  interpreter.printStack(std::cout);
+  // interpreter.printStack(std::cout);
 
   // for (;;) {
   //   auto opt = lexer.next();

@@ -14,6 +14,7 @@
 namespace af {
 
 struct Function;
+struct Vector;
 struct Interpreter;
 
 using PrimitiveTypeID = std::size_t;
@@ -63,6 +64,8 @@ struct PrimitiveTypeInfo final {
 
 struct AnyType final {
   bool operator==(const AnyType &other) const { return true; }
+  bool operator!=(const AnyType &other) const { return false; }
+  bool operator<(const AnyType &other) const { return false; }
 };
 
 inline std::ostream &operator<<(std::ostream &out, AnyType x) {
@@ -74,7 +77,11 @@ struct PrimitiveType final {
   PrimitiveType() = delete;
   PrimitiveType(std::string &&name) : info(PrimitiveTypeInfo::get(std::move(name))) {}
   bool operator==(const PrimitiveType &other) const { return info == other.info; }
+  bool operator!=(const PrimitiveType &other) const { return info != other.info; }
   void add(Function function);
+  bool operator<(const PrimitiveType &other) const {
+    return info->name < other.info->name || (info->name == other.info->name && info < other.info);
+  }
 };
 
 inline std::ostream &operator<<(std::ostream &out, PrimitiveType type) {
@@ -95,6 +102,12 @@ struct FunctionType final {
 
   bool operator==(const FunctionType &other) const {
     return inputs == other.inputs && outputs == other.outputs;
+  }
+  bool operator!=(const FunctionType &other) const {
+    return !(*this == other);
+  }
+  bool operator<(const FunctionType &other) const {
+    return inputs < other.inputs || (inputs == other.inputs && outputs < other.outputs);
   }
 };
 
@@ -136,6 +149,8 @@ using Value = std::variant<
 
     Function>;
 
+inline std::ostream &operator<<(std::ostream &out, const Value &value);
+
 struct FunctionData final {
   Atom *name;
   FunctionType type;
@@ -151,10 +166,36 @@ struct Function final {
   Function(const std::string &n, FunctionType &&t, std::function<void(Interpreter &)> &&b)
       : Function(intern(n), std::move(t), std::move(b)) {}
   bool operator==(const Function &other) const { return data == other.data; }
+  bool operator!=(const Function &other) const { return data != other.data; }
+  bool operator<(const Function &other) const {
+    return data->name->string < other.data->name->string ||
+           (data->name->string == other.data->name->string &&
+            data < other.data);
+  }
 };
 
 inline std::ostream &operator<<(std::ostream &out, const Function &function) {
   return out << "<Function " << function.data->name->string << ">";
+}
+
+struct Vector final {
+  std::shared_ptr<std::vector<Value>> value;
+  Vector(std::vector<Value> &&v)
+      : value(std::make_shared<std::vector<Value>>(std::move(v))) {}
+  bool operator==(const Vector &other) const { return *value == *other.value; }
+  bool operator!=(const Vector &other) const { return *value != *other.value; }
+};
+
+inline std::ostream &operator<<(std::ostream &out, const Vector &vector) {
+  out << "[";
+  for (size_t i = 0; i < vector.value->size(); i++) {
+    if (i > 0) {
+      out << ", ";
+    }
+    auto item = (*vector.value)[i];
+    out << item;
+  }
+  return out << "]";
 }
 
 static_assert(std::is_move_constructible_v<Value>);
@@ -162,7 +203,7 @@ static_assert(std::is_copy_constructible_v<Value>);
 static_assert(std::is_copy_assignable_v<Value>);
 static_assert(std::is_move_assignable_v<Value>);
 
-inline std::ostream &operator<<(std::ostream &out, Value value) {
+inline std::ostream &operator<<(std::ostream &out, const Value &value) {
   return std::visit(
       [&](auto &v) -> std::ostream & {
         using T = std::decay_t<decltype(v)>;
@@ -288,6 +329,25 @@ inline bool functionMatchesStack(const FunctionType &type, const std::vector<Val
     }
   }
   return true;
+}
+
+inline bool operator<(const Value &a, const Value &b) {
+  auto ai = a.index();
+  auto bi = b.index();
+  if (ai != bi) {
+    return ai < bi;
+  }
+  return std::visit(
+      [&](auto &av) -> bool {
+        using T = std::decay_t<decltype(av)>;
+        auto bv = std::get<T>(b);
+        if constexpr (std::is_same_v<T, Atom *>) {
+          return av->string < bv->string;
+        } else {
+          return av < bv;
+        }
+      },
+      a);
 }
 
 }  // namespace af

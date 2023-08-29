@@ -39,4 +39,24 @@ inline std::ostream &operator<<(std::ostream &out, Atom *atom) {
   return out << atom->string;
 }
 
+inline Atom *getAtomDot() {
+  static auto atom = intern(".");
+  return atom;
+}
+
+inline Atom *getAtomArrow() {
+  static auto atom = intern("->");
+  return atom;
+}
+
+inline Atom *getAtomColon() {
+  static auto atom = intern(":");
+  return atom;
+}
+
+inline Atom *getAtomSemicolon() {
+  static auto atom = intern(";");
+  return atom;
+}
+
 }  // namespace af

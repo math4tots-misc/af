@@ -72,7 +72,8 @@
         "fstream": "cpp",
         "iomanip": "cpp",
         "map": "cpp",
-        "stack": "cpp"
+        "stack": "cpp",
+        "functional": "cpp"
     },
     "C_Cpp.clang_format_fallbackStyle": "{ BasedOnStyle: Google, IndentWidth: 2, ColumnLimit: 0}",
     "files.trimTrailingWhitespace": true
