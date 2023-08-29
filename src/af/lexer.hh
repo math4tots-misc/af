@@ -1,3 +1,4 @@
+#pragma once
 #include <cctype>
 #include <fstream>
 #include <iostream>
@@ -13,7 +14,7 @@ struct AtomToken final {
   explicit AtomToken(std::string &&v) : value(std::move(v)) {}
 };
 
-std::ostream &operator<<(std::ostream &out, const AtomToken &token) {
+inline std::ostream &operator<<(std::ostream &out, const AtomToken &token) {
   return out << "AtomToken(\"" << token.value << "\")";
 }
 
@@ -22,7 +23,7 @@ struct NumberToken final {
   explicit NumberToken(double v) : value(v) {}
 };
 
-std::ostream &operator<<(std::ostream &out, const NumberToken &token) {
+inline std::ostream &operator<<(std::ostream &out, const NumberToken &token) {
   return out << "NumberToken(" << token.value << ")";
 }
 
@@ -31,23 +32,14 @@ struct StringToken final {
   explicit StringToken(std::string &&v) : value(std::move(v)) {}
 };
 
-std::ostream &operator<<(std::ostream &out, const StringToken &token) {
+inline std::ostream &operator<<(std::ostream &out, const StringToken &token) {
   return out << "StringToken(\"" << token.value << "\")";
 }
 
 using Token = std::variant<AtomToken, NumberToken, StringToken>;
 
-std::ostream &operator<<(std::ostream &out, const Token &token) {
-  std::visit([&](auto &&t) {
-                using T = std::decay_t<decltype(t)>;
-                if constexpr (std::is_same_v<T, NumberToken>) {
-                  out << t;
-                } else if constexpr (std::is_same_v<T, StringToken>) {
-                  out << t;
-                } else if constexpr (std::is_same_v<T, AtomToken>) {
-                  out << t;
-                } },
-             token);
+inline std::ostream &operator<<(std::ostream &out, const Token &token) {
+  std::visit([&](const auto &t) { out << t; }, token);
   return out;
 }
 
@@ -63,16 +55,7 @@ struct LexerSource final {
   LexerSource(std::ifstream &&fin) : ownership(std::ifstream(std::move(fin))) {}
 
   std::istream &get() {
-    return std::visit(
-        [&](auto &&v) -> std::istream & {
-          using T = std::decay_t<decltype(v)>;
-          if constexpr (std::is_same_v<T, std::istringstream>) {
-            return std::get<std::istringstream>(ownership);
-          } else if constexpr (std::is_same_v<T, std::ifstream>) {
-            return std::get<std::ifstream>(ownership);
-          }
-        },
-        ownership);
+    return std::visit([&](auto &v) -> std::istream & { return v; }, ownership);
   }
 };
 
@@ -86,16 +69,26 @@ struct Lexer final {
  public:
   Lexer(LexerSource &&s) : src(std::move(s)), in(src.get()) {
     if (in.eof()) {
-      peek = (char)in.get();
+      peek = static_cast<char>(in.get());
     }
   }
   Lexer(std::string &&s) : Lexer(LexerSource(std::move(s))) {}
   Lexer(std::ifstream &&fin) : Lexer(LexerSource(std::move(fin))) {}
 
+  // TODO: Think about whether this is correct. I'm pretty sure
+  // the default move constructor is broken because of '&in'.
+  Lexer(Lexer &&lx) : Lexer(std::move(lx.src)) {
+    peek = lx.peek;
+    dotNext = lx.dotNext;
+  }
+
+  // Explicitly deleted because the default is broken by 'istream &in'
+  Lexer &operator=(Lexer &&lx) = delete;
+
  private:
   char incr() {
     char old = peek;
-    peek = (char)in.get();
+    peek = static_cast<char>(in.get());
     return old;
   }
   bool eof() const {
