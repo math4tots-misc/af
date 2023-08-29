@@ -35,4 +35,8 @@ inline Atom *intern(const std::string &s) {
   return Atom::get(s);
 }
 
+inline std::ostream &operator<<(std::ostream &out, Atom *atom) {
+  return out << atom->string;
+}
+
 }  // namespace af

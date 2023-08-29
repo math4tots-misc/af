@@ -8,16 +8,17 @@
 #include <string>
 #include <variant>
 
+#include "af/atom.hh"
 #include "af/integer.hh"
 
 namespace af {
 struct AtomToken final {
-  std::string value;
-  explicit AtomToken(std::string &&v) : value(std::move(v)) {}
+  Atom *value;
+  explicit AtomToken(const std::string &v) : value(intern(v)) {}
 };
 
 inline std::ostream &operator<<(std::ostream &out, const AtomToken &token) {
-  return out << "AtomToken(\"" << token.value << "\")";
+  return out << "AtomToken(\"" << token.value->string << "\")";
 }
 
 struct IntegerToken final {
@@ -54,45 +55,20 @@ inline std::ostream &operator<<(std::ostream &out, const Token &token) {
   return out;
 }
 
-struct LexerSource final {
- private:
-  std::variant<
-      std::istringstream,
-      std::ifstream>
-      ownership;  // Hold any data required to keep istream valid
- public:
-  LexerSource() = delete;
-  LexerSource(std::string &&s) : ownership(std::istringstream(std::move(s))) {}
-  LexerSource(std::ifstream &&fin) : ownership(std::ifstream(std::move(fin))) {}
-
-  std::istream &get() {
-    return std::visit([&](auto &v) -> std::istream & { return v; }, ownership);
-  }
-};
-
 struct Lexer final {
  private:
-  LexerSource src;
-  std::istream &in;
+  std::string str;
+  size_t i = 0;
   char peek = '\0';
 
   /// @brief Special punctuation token that does not need whitespace to be separated
   char special = 0;
 
  public:
-  Lexer(LexerSource &&s) : src(std::move(s)), in(src.get()) {
-    if (in.eof()) {
-      peek = static_cast<char>(in.get());
+  Lexer(std::string &&s) : str(std::move(s)) {
+    if (str.size()) {
+      peek = str[0];
     }
-  }
-  Lexer(std::string &&s) : Lexer(LexerSource(std::move(s))) {}
-  Lexer(std::ifstream &&fin) : Lexer(LexerSource(std::move(fin))) {}
-
-  // TODO: Think about whether this is correct. I'm pretty sure
-  // the default move constructor is broken because of '&in'.
-  Lexer(Lexer &&lx) : Lexer(std::move(lx.src)) {
-    peek = lx.peek;
-    special = lx.special;
   }
 
   // Explicitly deleted because the default is broken by 'istream &in'
@@ -105,11 +81,14 @@ struct Lexer final {
 
   char incr() {
     char old = peek;
-    peek = static_cast<char>(in.get());
+    if (peek != '\0') {
+      i++;
+      peek = i >= str.size() ? '\0' : str[i];
+    }
     return old;
   }
   bool eof() const {
-    return in.eof();
+    return peek == '\0';
   }
 
  public:

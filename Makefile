@@ -12,7 +12,8 @@ CLANG_WARNING_FLAGS := -Weverything \
 	-Wno-c++98-compat \
 	-Wno-padded \
 	-Wno-documentation \
-	-Wno-unused-parameter
+	-Wno-unused-parameter \
+	-Wno-c++98-compat-pedantic
 
 FLAGS := -std=c++17 $(WARNING_FLAGS) $(CLANG_WARNING_FLAGS) -Isrc -g
 
